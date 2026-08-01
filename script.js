@@ -34,8 +34,11 @@ let activeCategory  = 'todos'; // 'todos' | category id
 let activeDiscover  = null;    // null | discover filter id
 let cart            = [];
 let searchActive    = false;
-let bannerTimer     = null;
-let currentBannerIdx= 0;
+let bannerTimer        = null;
+let bannerNumReal      = 0;    // count of real (non-clone) banner slides
+let bannerPauseTimer   = null; // pause timer after user swipe interaction
+let currentBannerIdx   = 0;
+let pendingOrdersCount = 0;    // orders completed but not yet seen in Pedidos
 let orderHistory    = JSON.parse(localStorage.getItem('plusLanches_orders'))  || [];
 
 let storeData = JSON.parse(localStorage.getItem('plusLanches_store')) || {
@@ -142,9 +145,8 @@ function _applyScreen(id) {
   const nav = document.getElementById('bottom-nav');
   nav.style.display = isClient ? 'flex' : 'none';
 
-  // Floating cart
-  document.getElementById('cart-floating-btn').style.display =
-    id === 'screen-cliente' ? 'flex' : 'none';
+  // Floating cart: show on any client screen (except cart itself) when cart has items
+  _updateFloatingCart(id);
 
   // Home = full-width, no padding
   document.getElementById('main-content').classList.toggle('home-mode', id === 'screen-home');
@@ -436,32 +438,24 @@ function filterDiscover(discoverType) {
   }, 100);
 }
 
-// ── Banner Carousel ──
+// ── Banner Carousel — Infinite Loop, 20s auto, 60s pause after swipe ──
 function _renderBanners() {
   const track = document.getElementById('banner-track');
   const dots  = document.getElementById('banner-dots');
   if (!track) return;
+
+  clearInterval(bannerTimer);
+  clearTimeout(bannerPauseTimer);
+
   const active = banners.filter(b => b.active);
-  if (!active.length) {
-    track.innerHTML = `
-      <div class="banner-slide" style="background:linear-gradient(135deg,var(--purple-main),var(--purple-dark))">
-        <div class="banner-slide-content">
-          <span class="banner-tag tag-destaque">Bem-vindo</span>
-          <div class="banner-title">+Lanches</div>
-          <div class="banner-subtitle">Delivery de qualidade</div>
-          <button class="banner-cta-btn" onclick="switchScreen('screen-cliente')">
-            Ver cardápio
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
-            </svg>
-          </button>
-        </div>
-      </div>`;
-    if (dots) dots.innerHTML = '';
-    return;
-  }
-  const tagClass = { 'Promoção':'tag-promo','Novo':'tag-novo','Oferta':'tag-oferta','Destaque':'tag-destaque','Super Combo':'tag-combo','Exclusivo':'tag-destaque' };
-  track.innerHTML = active.map(b => `
+
+  const tagClass = {
+    'Promoção':'tag-promo','Novo':'tag-novo','Oferta':'tag-oferta',
+    'Destaque':'tag-destaque','Super Combo':'tag-combo','Exclusivo':'tag-destaque'
+  };
+  const arrowSvg = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/></svg>`;
+
+  const makeSlide = b => `
     <div class="banner-slide"
       style="background:linear-gradient(135deg,${b.color1||'#4A154B'},${b.color2||'#350F36'})">
       ${b.img ? `<img src="${b.img}" class="banner-img" alt="${b.title}" loading="lazy">` : ''}
@@ -471,86 +465,152 @@ function _renderBanners() {
         ${b.subtitle ? `<div class="banner-subtitle">${b.subtitle}</div>` : ''}
         ${b.price    ? `<div class="banner-price">${b.price}</div>` : ''}
         <button class="banner-cta-btn" onclick="switchScreen('screen-cliente')">
-          Pedir agora
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
-          </svg>
+          Pedir agora ${arrowSvg}
         </button>
       </div>
-    </div>`).join('');
+    </div>`;
 
+  if (!active.length) {
+    track.innerHTML = `
+      <div class="banner-slide" style="background:linear-gradient(135deg,var(--purple-main),var(--purple-dark))">
+        <div class="banner-slide-content">
+          <span class="banner-tag tag-destaque">Bem-vindo</span>
+          <div class="banner-title">+Lanches</div>
+          <div class="banner-subtitle">Delivery de qualidade</div>
+          <button class="banner-cta-btn" onclick="switchScreen('screen-cliente')">
+            Ver cardápio ${arrowSvg}
+          </button>
+        </div>
+      </div>`;
+    if (dots) dots.innerHTML = '';
+    bannerNumReal = 0;
+    return;
+  }
+
+  bannerNumReal    = active.length;
+  currentBannerIdx = 0;
+
+  if (active.length > 1) {
+    // Infinite clone: prepend clone of last, append clone of first
+    const firstClone = makeSlide(active[0]);
+    const lastClone  = makeSlide(active[active.length - 1]);
+    track.innerHTML  = lastClone + active.map(makeSlide).join('') + firstClone;
+  } else {
+    track.innerHTML = active.map(makeSlide).join('');
+  }
+
+  // Dots (only for real slides)
   if (dots) {
     dots.innerHTML = active.map((_, i) =>
       `<button class="banner-dot ${i===0?'active':''}" onclick="scrollToBanner(${i})" aria-label="Banner ${i+1}"></button>`
     ).join('');
   }
 
-  // ── JS Touch Swipe Handler (more reliable on mobile than CSS scroll alone) ──
-  let touchStartX   = 0;
-  let touchStartY   = 0;
-  let isSwiping     = false;
-  let isDraggingH   = false;
+  // Snap to first real slide (DOM index 1 because of prepended last-clone)
+  if (active.length > 1) {
+    requestAnimationFrame(() => {
+      const w = track.offsetWidth;
+      if (w) {
+        track.style.scrollBehavior = 'auto';
+        track.scrollLeft = w;
+        requestAnimationFrame(() => { track.style.scrollBehavior = ''; });
+      }
+    });
+  }
 
+  // ── Infinite jump when reaching clones ──
+  if (active.length > 1) {
+    let _jumping = false;
+    track.addEventListener('scroll', () => {
+      if (_jumping || !track.offsetWidth) return;
+      const w      = track.offsetWidth;
+      const rawIdx = Math.round(track.scrollLeft / w);
+      if (rawIdx >= bannerNumReal + 1) {
+        _jumping = true;
+        track.style.scrollBehavior = 'auto';
+        track.scrollLeft = w; // jump to first real slide
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          track.style.scrollBehavior = ''; _jumping = false;
+        }));
+        currentBannerIdx = 0; _setBannerDot(0);
+      } else if (rawIdx <= 0) {
+        _jumping = true;
+        track.style.scrollBehavior = 'auto';
+        track.scrollLeft = w * bannerNumReal; // jump to last real slide
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          track.style.scrollBehavior = ''; _jumping = false;
+        }));
+        currentBannerIdx = bannerNumReal - 1; _setBannerDot(bannerNumReal - 1);
+      } else if (!_jumping) {
+        currentBannerIdx = rawIdx - 1; _setBannerDot(currentBannerIdx);
+      }
+    }, { passive: true });
+  }
+
+  // ── Touch swipe: direction-aware, infinite-aware ──
+  let touchStartX = 0, touchStartY = 0, isSwiping = false, isDraggingH = false;
   track.addEventListener('touchstart', e => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-    isSwiping = true;
-    isDraggingH = false;
-    clearInterval(bannerTimer);
+    touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+    isSwiping = true; isDraggingH = false;
+    clearInterval(bannerTimer); clearTimeout(bannerPauseTimer);
   }, { passive: true });
-
   track.addEventListener('touchmove', e => {
     if (!isSwiping) return;
     const dx = Math.abs(e.touches[0].clientX - touchStartX);
     const dy = Math.abs(e.touches[0].clientY - touchStartY);
-    // Determine direction on first significant move
-    if (!isDraggingH && (dx > 8 || dy > 8)) {
-      isDraggingH = dx > dy; // horizontal swipe
-    }
-    // If horizontal, let the browser handle CSS scroll (don't prevent default)
+    if (!isDraggingH && (dx > 8 || dy > 8)) isDraggingH = dx > dy;
   }, { passive: true });
-
   track.addEventListener('touchend', e => {
     if (!isSwiping) return;
     isSwiping = false;
     const diff = touchStartX - e.changedTouches[0].clientX;
     if (isDraggingH && Math.abs(diff) > 45) {
-      if (diff > 0) currentBannerIdx = Math.min(currentBannerIdx + 1, active.length - 1);
-      else          currentBannerIdx = Math.max(currentBannerIdx - 1, 0);
-      scrollToBanner(currentBannerIdx);
+      _advanceBanner(diff > 0 ? 1 : -1, track, bannerNumReal);
     }
-    // Restart auto-scroll
-    if (active.length > 1) {
-      bannerTimer = setInterval(() => {
-        currentBannerIdx = (currentBannerIdx + 1) % active.length;
-        scrollToBanner(currentBannerIdx);
-      }, 4500);
-    }
+    // After interaction, wait 60s before auto-resuming
+    bannerPauseTimer = setTimeout(() => _startBannerAutoScroll(bannerNumReal), 60000);
   }, { passive: true });
 
-  // Auto-scroll
-  clearInterval(bannerTimer);
-  currentBannerIdx = 0;
-  if (active.length > 1) {
-    bannerTimer = setInterval(() => {
-      currentBannerIdx = (currentBannerIdx + 1) % active.length;
-      scrollToBanner(currentBannerIdx);
-    }, 4500);
+  _startBannerAutoScroll(bannerNumReal);
+}
+
+/** Advance by +1 (forward) or -1 (back), handling infinite wrap via clones */
+function _advanceBanner(dir, track, numReal) {
+  if (!track) track = document.getElementById('banner-track');
+  if (!track || numReal < 1) return;
+  const w = track.offsetWidth;
+  if (dir > 0) {
+    if (currentBannerIdx === numReal - 1) {
+      // Last → forward to clone-of-first (seamless)
+      track.scrollTo({ left: (numReal + 1) * w, behavior: 'smooth' });
+      currentBannerIdx = 0; _setBannerDot(0);
+    } else { currentBannerIdx++; scrollToBanner(currentBannerIdx); }
+  } else {
+    if (currentBannerIdx === 0) {
+      // First → backward to clone-of-last (seamless)
+      track.scrollTo({ left: 0, behavior: 'smooth' });
+      currentBannerIdx = numReal - 1; _setBannerDot(numReal - 1);
+    } else { currentBannerIdx--; scrollToBanner(currentBannerIdx); }
   }
-  // Sync dots on CSS scroll
-  track.addEventListener('scroll', () => {
-    if (!track.offsetWidth) return;
-    const idx = Math.round(track.scrollLeft / track.offsetWidth);
-    _setBannerDot(idx);
-    currentBannerIdx = idx;
-  }, { passive:true });
+}
+
+/** Start 20s auto-scroll interval */
+function _startBannerAutoScroll(numReal) {
+  clearInterval(bannerTimer);
+  if (numReal < 2) return;
+  bannerTimer = setInterval(() => {
+    const t = document.getElementById('banner-track');
+    if (t) _advanceBanner(1, t, numReal);
+  }, 20000);
 }
 function scrollToBanner(idx) {
   const track = document.getElementById('banner-track');
   if (!track) return;
-  track.scrollTo({ left: idx * track.offsetWidth, behavior:'smooth' });
-  _setBannerDot(idx);
-  currentBannerIdx = idx;
+  // In infinite mode, real slides start at DOM index 1 (clone of last is at 0)
+  const domIdx = bannerNumReal > 1 ? idx + 1 : idx;
+  track.scrollTo({ left: domIdx * track.offsetWidth, behavior: 'smooth' });
+  _setBannerDot(idx % Math.max(bannerNumReal, 1));
+  currentBannerIdx = idx % Math.max(bannerNumReal, 1);
 }
 function _setBannerDot(idx) {
   document.querySelectorAll('.banner-dot').forEach((d,i) => d.classList.toggle('active', i===idx));
@@ -883,8 +943,25 @@ function updateCartCount() {
   const n = cart.length;
   const cnt = document.getElementById('cart-count');
   if (cnt) cnt.textContent = n;
-  const nb = document.getElementById('nav-orders-badge');
-  if (nb) { nb.textContent = n; nb.classList.toggle('hidden', n===0); }
+  _updateFloatingCart(); // show/hide floating cart button based on cart + current screen
+}
+
+/** Show floating cart button on any client screen (except cart itself) when cart has items */
+function _updateFloatingCart(screenId) {
+  const id  = screenId || document.querySelector('.screen.active')?.id || '';
+  const n   = cart.length;
+  const clientScreens = ['screen-home','screen-cliente','screen-orders','screen-profile'];
+  const show = n > 0 && clientScreens.includes(id);
+  const btn  = document.getElementById('cart-floating-btn');
+  if (btn) btn.style.display = show ? 'flex' : 'none';
+}
+
+/** Update the badge on the Pedidos nav button */
+function _updateOrdersBadge() {
+  const badge = document.getElementById('nav-orders-badge');
+  if (!badge) return;
+  badge.textContent = pendingOrdersCount || '';
+  badge.classList.toggle('hidden', pendingOrdersCount === 0);
 }
 
 function goToCart() { renderCart(); switchScreen('screen-cart'); }
@@ -947,6 +1024,9 @@ async function checkout() {
 
   _btnLoad(btn, false, 'Finalizar Pedido');
   showToast(`Pedido feito! ${orderType==='entrega'?'Entrega':'Retirada'} · ${payment}`, 'success');
+  pendingOrdersCount++;
+  _updateOrdersBadge();
+  _updateNotifBadge();
   cart = []; updateCartCount();
   setTimeout(() => switchScreen('screen-home'), 600);
 }
@@ -954,7 +1034,12 @@ async function checkout() {
 // ═══════════════════════════════════════════════════════════════
 // ORDERS
 // ═══════════════════════════════════════════════════════════════
-function goToOrders() { switchScreen('screen-orders'); }
+function goToOrders() {
+  // Clear badge when user opens Pedidos
+  pendingOrdersCount = 0;
+  _updateOrdersBadge();
+  switchScreen('screen-orders');
+}
 
 function _loadOrders() {
   const el = document.getElementById('orders-content');
@@ -967,22 +1052,49 @@ function _loadOrders() {
         <button class="btn-primary" style="margin:16px auto 0;display:flex" onclick="switchScreen('screen-home')">
           <svg class="icon-sm"><use href="#ic-home"/></svg> Ir ao Cardápio
         </button>
-      </div>`; return;
+      </div>`;
+    return;
   }
-  el.innerHTML = orderHistory.map(o => `
-    <div class="order-history-card">
+  el.innerHTML = orderHistory.map((o, i) => `
+    <div class="order-history-card" id="order-card-${i}" onclick="toggleOrderDetail(${i})">
       <div class="order-history-header">
         <div>
-          <div style="font-size:.85rem;font-weight:600;color:var(--text-dark)">${o.date}</div>
-          <div style="font-size:.75rem;color:var(--text-muted)">${o.type==='entrega'?'Entrega':'Retirada'} · ${o.payment}</div>
+          <div class="order-date">${o.date}</div>
+          <div class="order-meta">${o.type==='entrega'?'Entrega':'Retirada'} · ${o.payment}</div>
         </div>
-        <span class="order-status-badge delivered">${o.status||'Entregue'}</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="order-status-badge delivered">${o.status||'Entregue'}</span>
+          <svg class="order-chevron" id="order-chevron-${i}" width="16" height="16"
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6,9 12,15 18,9"/>
+          </svg>
+        </div>
       </div>
-      <div class="order-history-body">
-        ${o.items.map(name=>`<div class="order-history-item">• ${name}</div>`).join('')}
-        <div class="order-history-total">R$ ${_fmt(o.total)}</div>
+      <div class="order-detail-body" id="order-body-${i}">
+        <div class="order-history-body">
+          ${o.items.map(name=>`<div class="order-history-item">• ${name}</div>`).join('')}
+          <div class="order-history-total">R$ ${_fmt(o.total)}</div>
+          <div class="order-detail-meta">
+            ${o.type==='entrega'?'🚗 Entrega a domicílio':'🏪 Retirada na loja'}
+            &nbsp;·&nbsp; 💳 Pagamento: ${o.payment}
+          </div>
+        </div>
       </div>
     </div>`).join('');
+}
+
+function toggleOrderDetail(idx) {
+  const body    = document.getElementById(`order-body-${idx}`);
+  const chevron = document.getElementById(`order-chevron-${idx}`);
+  if (!body) return;
+  const isOpen = body.classList.contains('open');
+  // Close all
+  document.querySelectorAll('.order-detail-body.open').forEach(b => b.classList.remove('open'));
+  document.querySelectorAll('.order-chevron').forEach(c => c.style.transform = '');
+  if (!isOpen) {
+    body.classList.add('open');
+    if (chevron) chevron.style.transform = 'rotate(180deg)';
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1258,6 +1370,8 @@ Object.assign(window, {
   previewImage,
   // cart + checkout
   addToCart, renderCart, removeFromCart, checkout, updateCartCount,
+  // orders
+  toggleOrderDetail,
   // toast
   showToast,
 });
