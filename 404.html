@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>+Lanches</title>
+  <script>
+    // GitHub Pages SPA — redireciona 404 para index.html
+    (function() {
+      var l = window.location;
+      var base = l.pathname.split('/').slice(0, -1).join('/') + '/';
+      // Guarda o caminho original como hash para o index restaurar se quiser
+      l.replace(l.origin + base + 'index.html' + l.search + l.hash);
+    })();
+  </script>
+</head>
+<body></body>
+</html>
