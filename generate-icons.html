@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Gerar Ícones PWA — +Lanches</title>
+  <style>
+    body { font-family: sans-serif; max-width: 500px; margin: 40px auto; padding: 20px; }
+    button { background: #4A154B; color: white; border: none; padding: 12px 24px;
+             border-radius: 8px; cursor: pointer; font-size: 1rem; margin-top: 16px; }
+    a { display: block; margin-top: 10px; color: #4A154B; font-weight: bold; }
+    canvas { display: none; }
+  </style>
+</head>
+<body>
+  <h2>Gerador de Ícones PWA</h2>
+  <p>Clique para gerar e baixar os arquivos <code>icon-512.png</code> e <code>icon-192.png</code>.
+     Salve-os na pasta <code>icons/</code> do projeto.</p>
+  <button onclick="generate()">Gerar e Baixar Ícones</button>
+  <div id="links"></div>
+  <canvas id="c"></canvas>
+
+  <script>
+  function drawIcon(size, ctx) {
+    const r = size * 0.224; // iOS rounded corner ratio
+    // Background gradient
+    const grad = ctx.createLinearGradient(0,0,size,size);
+    grad.addColorStop(0, '#6B1B68');
+    grad.addColorStop(1, '#4A154B');
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.lineTo(size - r, 0);
+    ctx.arcTo(size, 0, size, r, r);
+    ctx.lineTo(size, size - r);
+    ctx.arcTo(size, size, size - r, size, r);
+    ctx.lineTo(r, size);
+    ctx.arcTo(0, size, 0, size - r, r);
+    ctx.lineTo(0, r);
+    ctx.arcTo(0, 0, r, 0, r);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+    // Plus sign
+    const bar = size * 0.12;
+    const arm = size * 0.54;
+    const cx  = size / 2;
+    const cy  = size / 2;
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.roundRect(cx - bar/2, cy - arm/2, bar, arm, size * 0.03);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.roundRect(cx - arm/2, cy - bar/2, arm, bar, size * 0.03);
+    ctx.fill();
+  }
+
+  function generate() {
+    const canvas = document.getElementById('c');
+    const links  = document.getElementById('links');
+    links.innerHTML = '';
+
+    [512, 192].forEach(size => {
+      canvas.width  = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, size, size);
+      drawIcon(size, ctx);
+      const url  = canvas.toDataURL('image/png');
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `icon-${size}.png`;
+      a.textContent = `Baixar icon-${size}.png`;
+      links.appendChild(a);
+      a.click();
+    });
+  }
+  </script>
+</body>
+</html>
