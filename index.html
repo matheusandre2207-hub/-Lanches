@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>+Lanches — Delivery</title>
   <meta name="description" content="Delivery de lanches e açaí direto na sua porta. Peça agora!">
+  <!-- Cache bust v4 -->
   <meta name="theme-color" content="#4A154B">
   <link rel="manifest" href="./manifest.json">
   <meta name="mobile-web-app-capable" content="yes">
@@ -17,7 +18,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css">
+  <!-- v4 cache bust -->
+  <link rel="stylesheet" href="./styles.css?v=4">
 </head>
 <body>
 
@@ -164,10 +166,14 @@
   <div class="notif-backdrop" onclick="closeNotifications()"></div>
   <div class="notif-drawer">
     <div class="notif-drawer-header">
+      <!-- Close button as a regular flex item — NOT position:absolute -->
       <button class="notif-close-btn" onclick="closeNotifications()" aria-label="Fechar">
-        <svg><use href="#ic-x"/></svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
       </button>
-      <h3 style="margin-left:44px">Notificações</h3>
+      <span class="notif-drawer-title">Notificações</span>
       <button class="notif-mark-btn" onclick="markAllRead()">Marcar lidas</button>
     </div>
     <div class="notif-list" id="notif-list" role="list"></div>
@@ -343,18 +349,30 @@
         <!-- Header -->
         <div class="home-header">
           <div class="home-address">
-            <svg><use href="#ic-location"/></svg>
+            <!-- Explicit SVG dimensions — not relying on CSS for size (mobile fix) -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+              style="color:var(--pink-accent);flex-shrink:0">
+              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
             <div class="home-addr-text">
               <span class="home-addr-label">ENTREGA EM</span>
               <span class="home-addr-value">
                 Meu endereço
-                <svg><use href="#ic-chevron-down"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6,9 12,15 18,9"/>
+                </svg>
               </span>
             </div>
           </div>
           <button class="home-notif-btn" id="notif-btn"
             onclick="toggleNotifications()" aria-label="Notificações">
-            <svg><use href="#ic-bell"/></svg>
+            <!-- Explicit SVG dimensions for mobile -->
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
             <span class="notif-count" id="notif-count"></span>
           </button>
         </div>
@@ -362,7 +380,12 @@
         <!-- Search — INLINE (not a new screen) -->
         <div class="home-search-wrap">
           <div class="home-search" id="home-search-box">
-            <svg style="width:18px;height:18px;color:var(--text-muted);flex-shrink:0;margin-left:14px"><use href="#ic-search"/></svg>
+            <!-- Explicit dimensions to prevent mobile SVG size bugs -->
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+              style="color:var(--text-muted);flex-shrink:0;margin-left:14px">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
             <input
               type="search"
               class="home-search-input"
@@ -376,11 +399,18 @@
               onfocus="openInlineSearch()"
               onkeydown="onSearchKeydown(event)">
             <button class="search-clear-btn" id="search-clear-btn"
-              onclick="clearSearch()" aria-label="Limpar busca">
-              <svg><use href="#ic-x"/></svg>
+              onclick="clearSearch()" aria-label="Limpar busca" type="button">
+              <!-- Explicit 18x18 — mobile browsers sometimes ignore CSS-only size on SVG -->
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
             </button>
-            <button class="home-search-btn" onclick="triggerSearch()" aria-label="Buscar">
-              <svg><use href="#ic-search"/></svg>
+            <button class="home-search-btn" onclick="triggerSearch()" aria-label="Buscar" type="button">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
             </button>
           </div>
         </div>
@@ -401,12 +431,10 @@
       <!-- MAIN HOME CONTENT (hidden when searching) -->
       <div class="home-content" id="home-content">
 
-        <!-- Banner Carousel -->
+        <!-- Banner Carousel — track handles its own rounding, no outer wrapper -->
         <div class="home-section-wrap" id="banner-section-wrap">
           <div class="banner-carousel-wrap" id="banner-carousel-wrap">
-            <div class="banner-track-outer">
-              <div class="banner-track" id="banner-track"></div>
-            </div>
+            <div class="banner-track" id="banner-track"></div>
             <div class="banner-dots" id="banner-dots" role="tablist"></div>
           </div>
         </div>

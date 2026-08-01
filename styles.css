@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════
-   +LANCHES — CSS v3 (Full-Screen, No-Zoom, No-Select)
+   +LANCHES — CSS v4 (Full-Screen, No-Zoom, No-Select, Mobile-Fix)
    ═══════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
@@ -538,14 +538,16 @@ h3 { font-size: 1rem; font-weight: 700; color: var(--text-dark); letter-spacing:
 .cat-btn.active .cat-icon-wrap { background: rgba(74,21,75,.12); }
 .cat-icon { width: 19px; height: 19px; color: var(--purple-main); }
 
-/* ── Inline Search Results (replaces home content when searching) ── */
+/* ── Inline Search Results ── */
 .inline-search-results {
-  display: none;
+  display: none !important; /* Hidden by default — JS controls visibility */
   padding: 14px 16px;
   background: var(--cream-bg);
   min-height: 300px;
+  /* Make sure it fills the home scroll area */
+  min-height: calc(100vh - 180px);
 }
-.inline-search-results.visible { display: block; }
+.inline-search-results.visible { display: block !important; }
 .search-results-title {
   font-size: .8rem; font-weight: 600; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px;
@@ -583,13 +585,9 @@ h3 { font-size: 1rem; font-weight: 700; color: var(--text-dark); letter-spacing:
   padding: 14px 16px 0;
   position: relative;
 }
-/* Outer clips rounded corners */
-.banner-track-outer {
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-md);
-}
-/* Inner scrolls — no overflow:hidden here */
+/* No outer wrapper — apply rounding directly on the track.
+   overflow:auto on a rounded element DOES clip children to the rounded area
+   without blocking touch-scroll events. */
 .banner-track {
   display: flex;
   overflow-x: auto;
@@ -598,7 +596,12 @@ h3 { font-size: 1rem; font-weight: 700; color: var(--text-dark); letter-spacing:
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-x;
+  /* Visual rounding + shadow on the scroll container itself */
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  cursor: grab;
 }
+.banner-track:active { cursor: grabbing; }
 .banner-track::-webkit-scrollbar { display: none; }
 .banner-slide {
   min-width: 100%; scroll-snap-align: start;
@@ -779,16 +782,22 @@ h3 { font-size: 1rem; font-weight: 700; color: var(--text-dark); letter-spacing:
    ═══════════════════════════════════════════════════════════════ */
 .notif-panel {
   position: fixed; inset: 0; z-index: 500;
-  pointer-events: none; visibility: hidden;
+  pointer-events: none;
+  /* Use opacity+visibility so transitions work AND it's fully hidden */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--t) var(--ease), visibility var(--t) var(--ease);
 }
-.notif-panel.open { pointer-events: auto; visibility: visible; }
+.notif-panel.open {
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+}
 .notif-backdrop {
   position: absolute; inset: 0;
   background: rgba(0,0,0,.45);
-  opacity: 0; transition: opacity var(--t) var(--ease);
   backdrop-filter: blur(2px);
 }
-.notif-panel.open .notif-backdrop { opacity: 1; }
 .notif-drawer {
   position: absolute; top: 0; right: 0;
   width: min(340px, 92vw);
@@ -802,16 +811,19 @@ h3 { font-size: 1rem; font-weight: 700; color: var(--text-dark); letter-spacing:
 }
 .notif-panel.open .notif-drawer { transform: translateX(0); }
 .notif-drawer-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 18px 20px 14px;
+  /* Simple flex row — no position:absolute tricks */
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px;
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
-.notif-drawer-header h3 { font-size: 1.1rem; font-weight: 700; color: var(--text-dark); }
+.notif-drawer-title {
+  flex: 1; font-size: 1.05rem; font-weight: 700; color: var(--text-dark);
+}
 .notif-mark-btn {
   background: none; border: none; color: var(--purple-main);
-  font-family: 'Poppins',sans-serif; font-size: .78rem; font-weight: 600;
-  cursor: pointer; padding: 4px 8px; border-radius: 6px;
+  font-family: 'Poppins',sans-serif; font-size: .75rem; font-weight: 600;
+  cursor: pointer; padding: 4px 8px; border-radius: 6px; white-space: nowrap;
   transition: background var(--t-fast) var(--ease);
 }
 .notif-mark-btn:hover { background: var(--purple-subtle); }
@@ -841,16 +853,21 @@ h3 { font-size: 1rem; font-weight: 700; color: var(--text-dark); letter-spacing:
 }
 .notif-empty { text-align: center; padding: 40px 20px; color: var(--text-muted); }
 .notif-empty svg { width: 44px; height: 44px; opacity: .3; margin-bottom: 10px; }
+/* Close button — regular flex item, no position:absolute */
 .notif-close-btn {
-  position: absolute; top: 18px; left: 16px;
   background: var(--cream-bg); border: 1px solid var(--border-color);
-  border-radius: 50%; width: 36px; height: 36px;
+  border-radius: 50%; width: 36px; height: 36px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   color: var(--text-muted); cursor: pointer;
   transition: all var(--t-fast) var(--ease);
 }
 .notif-close-btn:hover { background: var(--border-color); }
-.notif-close-btn svg { width: 16px; height: 16px; }
+/* Explicit SVG size via CSS — also set in HTML attributes as fallback */
+.notif-close-btn svg { width: 16px !important; height: 16px !important; }
+/* Search clear button SVG size */
+.search-clear-btn svg { width: 18px !important; height: 18px !important; }
+/* Home search button SVG */
+.home-search-btn svg { width: 20px !important; height: 20px !important; }
 
 /* ═══════════════════════════════════════════════════════════════
    ROLE SELECTION

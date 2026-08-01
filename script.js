@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// +LANCHES — script.js v3  (ES Module)
+// +LANCHES — script.js v4  (ES Module, Mobile-Fix)
 // ═══════════════════════════════════════════════════════════════
 
 import { initializeApp }    from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
@@ -450,7 +450,10 @@ function _renderBanners() {
           <div class="banner-title">+Lanches</div>
           <div class="banner-subtitle">Delivery de qualidade</div>
           <button class="banner-cta-btn" onclick="switchScreen('screen-cliente')">
-            Ver cardápio <svg><use href="#ic-forward"/></svg>
+            Ver cardápio
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+            </svg>
           </button>
         </div>
       </div>`;
@@ -468,7 +471,10 @@ function _renderBanners() {
         ${b.subtitle ? `<div class="banner-subtitle">${b.subtitle}</div>` : ''}
         ${b.price    ? `<div class="banner-price">${b.price}</div>` : ''}
         <button class="banner-cta-btn" onclick="switchScreen('screen-cliente')">
-          Pedir agora <svg><use href="#ic-forward"/></svg>
+          Pedir agora
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12,5 19,12 12,19"/>
+          </svg>
         </button>
       </div>
     </div>`).join('');
@@ -479,6 +485,49 @@ function _renderBanners() {
     ).join('');
   }
 
+  // ── JS Touch Swipe Handler (more reliable on mobile than CSS scroll alone) ──
+  let touchStartX   = 0;
+  let touchStartY   = 0;
+  let isSwiping     = false;
+  let isDraggingH   = false;
+
+  track.addEventListener('touchstart', e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+    isSwiping = true;
+    isDraggingH = false;
+    clearInterval(bannerTimer);
+  }, { passive: true });
+
+  track.addEventListener('touchmove', e => {
+    if (!isSwiping) return;
+    const dx = Math.abs(e.touches[0].clientX - touchStartX);
+    const dy = Math.abs(e.touches[0].clientY - touchStartY);
+    // Determine direction on first significant move
+    if (!isDraggingH && (dx > 8 || dy > 8)) {
+      isDraggingH = dx > dy; // horizontal swipe
+    }
+    // If horizontal, let the browser handle CSS scroll (don't prevent default)
+  }, { passive: true });
+
+  track.addEventListener('touchend', e => {
+    if (!isSwiping) return;
+    isSwiping = false;
+    const diff = touchStartX - e.changedTouches[0].clientX;
+    if (isDraggingH && Math.abs(diff) > 45) {
+      if (diff > 0) currentBannerIdx = Math.min(currentBannerIdx + 1, active.length - 1);
+      else          currentBannerIdx = Math.max(currentBannerIdx - 1, 0);
+      scrollToBanner(currentBannerIdx);
+    }
+    // Restart auto-scroll
+    if (active.length > 1) {
+      bannerTimer = setInterval(() => {
+        currentBannerIdx = (currentBannerIdx + 1) % active.length;
+        scrollToBanner(currentBannerIdx);
+      }, 4500);
+    }
+  }, { passive: true });
+
   // Auto-scroll
   clearInterval(bannerTimer);
   currentBannerIdx = 0;
@@ -488,7 +537,7 @@ function _renderBanners() {
       scrollToBanner(currentBannerIdx);
     }, 4500);
   }
-  // Sync dots on swipe
+  // Sync dots on CSS scroll
   track.addEventListener('scroll', () => {
     if (!track.offsetWidth) return;
     const idx = Math.round(track.scrollLeft / track.offsetWidth);
